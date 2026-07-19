@@ -129,12 +129,11 @@
     <label><input type="checkbox" id="showInactive"> Show inactive</label>
     <label><input type="checkbox" id="autoRefresh" checked> Auto-refresh</label>
     <label>Interval: <select id="refreshInterval">
-      <option value="5" selected>5s</option>
-      <option value="10">10s</option>
       <option value="15">15s</option>
-      <option value="30">30s</option>
+      <option value="30" selected>30s</option>
       <option value="60">60s</option>
       <option value="120">120s</option>
+      <option value="300">300s</option>
     </select></label>
   </div>
 
@@ -147,6 +146,7 @@
 (function() {
   var DETAIL_API = "https://playninjarift.com/api/detail_clan_website.php?clan_id=";
   var LS_PREFIX = "burnlist_";
+  var MIN_ELAPSED = 15;
 
   var state = {
     clans: [],
@@ -195,7 +195,7 @@
   }
 
   function getIntervalSec() {
-    return parseInt(refreshInterval.value, 10) || 5;
+    return parseInt(refreshInterval.value, 10) || 30;
   }
 
   function showError(msg) {
@@ -319,7 +319,7 @@
         var prevMember = prev && prev.members ? prev.members[name] : null;
         var gain = null;
         var rpm = null;
-        if (prevMember !== null && elapsed > 0) {
+        if (prevMember !== null && elapsed >= MIN_ELAPSED) {
           var d = Math.max(0, rep - prevMember);
           gain = d;
           rpm = d / elapsed * 60;
@@ -406,8 +406,9 @@
     var memberCount = clan.memberCount || 0;
     var elapsed = clan.elapsed || 0;
     var perN = getIntervalSec();
+    var hasBaseline = elapsed >= MIN_ELAPSED;
 
-    var avgRpm = activeCount > 0 ? (totalRpm / activeCount) : 0;
+    var avgRpm = hasBaseline && activeCount > 0 ? (totalRpm / activeCount) : 0;
 
     var colTemplate = "1fr 60px 70px 90px 1fr";
     if (n >= 5) colTemplate = "1fr 40px 50px 60px 1fr";
@@ -415,12 +416,16 @@
 
     var html = '<div class="clan-col" style="--col-template:' + colTemplate + '">';
     html += '<div class="col-header"><div class="cname">' + escapeHtml(clan.clanName || "Clan #" + clan.id) + '</div><div class="cid">ID ' + clan.id + '</div>';
-    html += '<div class="stats"><span class="stat-item"><span class="val rpm-val">' + totalRpm.toFixed(1) + '</span> <span class="lbl">total rpm</span></span>';
-    if (avgRpm > 0) {
-      html += '<span class="stat-item"><span class="val">' + avgRpm.toFixed(1) + '</span> <span class="lbl">avg rpm</span></span>';
+    if (hasBaseline) {
+      html += '<div class="stats"><span class="stat-item"><span class="val rpm-val">' + totalRpm.toFixed(1) + '</span> <span class="lbl">total rpm</span></span>';
+      if (avgRpm > 0) {
+        html += '<span class="stat-item"><span class="val">' + avgRpm.toFixed(1) + '</span> <span class="lbl">avg rpm</span></span>';
+      }
+      html += '<span class="stat-item"><span class="val">' + activeCount + '</span> <span class="lbl">/ ' + memberCount + ' active</span></span></div>';
+    } else {
+      html += '<div class="stats"><span class="stat-item" style="color:#444">waiting for baseline</span></div>';
     }
-    html += '<span class="stat-item"><span class="val">' + activeCount + '</span> <span class="lbl">/ ' + memberCount + ' active</span></span></div>';
-    if (totalGain > 0 && elapsed > 0) {
+    if (hasBaseline && totalGain > 0 && elapsed > 0) {
       html += '<div class="cgain">+' + totalGain.toLocaleString() + ' rep in ' + Math.round(elapsed) + 's</div>';
     }
     html += '</div>';
@@ -448,7 +453,7 @@
     }
 
     if (rendered === 0) {
-      html += '<div class="member-row"><span class="no-data">' + (hasAnyData ? 'no active members' : 'waiting for data') + '</span></div>';
+      html += '<div class="member-row"><span class="no-data">' + (hasAnyData ? 'no active members' : (hasBaseline ? 'no data' : 'waiting for baseline')) + '</span></div>';
     }
 
     html += '</div>';
