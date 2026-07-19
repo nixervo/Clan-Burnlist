@@ -56,8 +56,14 @@
   .clan-col .col-header .stat-item .lbl { color: #666; }
   .clan-col .col-header .stat-item .rpm-val { color: #e53935; }
   .clan-col .col-header .cgain { font-size: 11px; color: #4caf50; margin-top: 2px; }
+  .clan-col .col-header .crank { font-size: 12px; color: #c9a84c; margin-top: 2px; }
+  .clan-col .col-header .crank-line { font-size: 11px; color: #999; margin-top: 2px; }
+  .clan-col .col-header .cgaps { font-size: 11px; color: #888; margin-top: 1px; }
+  .clan-col .col-header .cgaps .gap-up { color: #ff9800; }
+  .clan-col .col-header .cgaps .gap-down { color: #4caf50; }
+  .clan-col .col-header .cgaps .gap-sep { color: #333; margin: 0 2px; }
 
-  .member-row { display: grid; grid-template-columns: var(--col-template, 1fr 60px 70px 90px 1fr); gap: 6px; align-items: center; padding: 4px 0; border-bottom: 1px solid #0a0a0a; font-size: 12px; min-height: 24px; }
+  .member-row { display: grid; grid-template-columns: var(--col-template, 1fr 60px 70px 90px); gap: 6px; align-items: center; padding: 4px 0; border-bottom: 1px solid #0a0a0a; font-size: 12px; min-height: 24px; }
   .member-row.header { color: #555; font-size: 10px; text-transform: uppercase; letter-spacing: .5px; border-bottom: 1px solid #1a1a2e; padding-bottom: 4px; margin-bottom: 2px; }
   .member-row .mname { color: #ccc; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; padding-right: 4px; }
   .member-row .mrpm { font-weight: 600; font-variant-numeric: tabular-nums; text-align: right; }
@@ -66,10 +72,6 @@
   .member-row .mrpm.low { color: #666; }
   .member-row .mgain { text-align: right; color: #4caf50; font-weight: 600; font-variant-numeric: tabular-nums; }
   .member-row .mtotal { text-align: right; color: #888; font-variant-numeric: tabular-nums; }
-  .member-row .mbar { height: 4px; background: #1a1a1a; border-radius: 2px; overflow: hidden; }
-  .member-row .mbar .fill { height: 100%; border-radius: 2px; background: linear-gradient(90deg, #e53935, #ff7043); transition: width .3s ease; }
-  .member-row .mbar .fill.inactive { background: #333; }
-
   .member-row .no-data { color: #444; font-style: italic; text-align: center; grid-column: 1 / -1; padding: 8px 0; }
 
   .empty-state, .error-state { text-align: center; padding: 60px 20px; color: #555; border: 1px dashed #1a1a2e; border-radius: 12px; }
@@ -91,7 +93,7 @@
     .clan-grid { grid-template-columns: 1fr !important; }
     .status-bar { flex-direction: column; align-items: stretch; text-align: center; }
     .status-bar .right { justify-content: center; }
-    .member-row { grid-template-columns: var(--col-template, 1fr 50px 55px 75px 1fr); font-size: 11px; }
+    .member-row { grid-template-columns: var(--col-template, 1fr 50px 55px 75px); font-size: 11px; }
   }
 </style>
 </head>
@@ -128,6 +130,7 @@
   </main>
 
   <div class="settings">
+    <label><input type="checkbox" id="sortByName" checked> Sort by name</label>
     <label><input type="checkbox" id="showInactive"> Show inactive</label>
     <label><input type="checkbox" id="autoRefresh" checked> Auto-refresh</label>
     <label>Interval: <select id="refreshInterval">
@@ -149,6 +152,7 @@
 <script>
 (function() {
   var DETAIL_API = "https://playninjarift.com/api/detail_clan_website.php?clan_id=";
+  var RANKING_API = "https://playninjarift.com/api/clan_ranking_website.php";
 
   var state = {
     clans: [],
@@ -237,7 +241,12 @@
     clearError();
 
     var ids = state.clans.map(function(c) { return c.id; });
-    var fetches = ids.map(function(id) {
+
+    var rankingPromise = fetch(RANKING_API, {cache: "no-cache"})
+      .then(function(r) { return r.json(); })
+      .catch(function() { return null; });
+
+    var detailPromises = ids.map(function(id) {
       return fetch(DETAIL_API + id, {cache: "no-cache"})
         .then(function(r) {
           if (!r.ok) throw new Error("HTTP " + r.status + " for clan " + id);
@@ -251,10 +260,10 @@
         });
     });
 
-    Promise.all(fetches)
-      .then(function(results) {
+    Promise.all([rankingPromise].concat(detailPromises))
+      .then(function(allResults) {
         state.fetching = false;
-        processData(results);
+        processData(allResults.slice(1), allResults[0]);
       })
       .catch(function(err) {
         state.fetching = false;
@@ -264,10 +273,25 @@
       });
   }
 
-  function processData(results) {
+  function processData(results, rankingData) {
     var now = Date.now();
     var hasNew = false;
     var allNames = [];
+
+    // Build ranking lookup
+    var rankingMap = {};
+    if (Array.isArray(rankingData)) {
+      for (var ri = 0; ri < rankingData.length; ri++) {
+        var entry = rankingData[ri];
+        rankingMap[entry.clan_id] = {
+          rank: ri + 1,
+          totalClans: rankingData.length,
+          clanRep: entry.clan_reputation || 0,
+          above: ri > 0 ? { name: rankingData[ri - 1].clan_name, rep: rankingData[ri - 1].clan_reputation || 0, num: ri } : null,
+          below: ri < rankingData.length - 1 ? { name: rankingData[ri + 1].clan_name, rep: rankingData[ri + 1].clan_reputation || 0, num: ri + 2 } : null
+        };
+      }
+    }
 
     for (var ri = 0; ri < results.length; ri++) {
       var res = results[ri];
@@ -294,6 +318,17 @@
       }
 
       clan.clanName = detail.clan_name || "Clan #" + clanId;
+
+      // Compute rank and gaps from ranking data
+      var rankInfo = rankingMap[clanId];
+      if (rankInfo) {
+        clan.clanRank = rankInfo.rank;
+        clan.totalClans = rankInfo.totalClans;
+        clan.upperGap = rankInfo.above ? rankInfo.above.rep - rankInfo.clanRep : null;
+        clan.upperRank = rankInfo.above ? rankInfo.above.num : null;
+        clan.lowerGap = rankInfo.below ? rankInfo.clanRep - rankInfo.below.rep : null;
+        clan.lowerRank = rankInfo.below ? rankInfo.below.num : null;
+      }
 
       // Build unique display names for duplicates
       var nameCount = {};
@@ -355,12 +390,6 @@
       for (var mi = 0; mi < detail.members.length; mi++) {
         bl.members[uniqNames[mi]] = detail.members[mi].member_reputation || 0;
       }
-
-      members.sort(function(a, b) {
-        var ra = a.rpm !== null ? a.rpm : -1;
-        var rb = b.rpm !== null ? b.rpm : -1;
-        return rb - ra;
-      });
 
       var totalRpm = 0;
       var totalGain = 0;
@@ -426,12 +455,45 @@
 
     var avgRpm = hasRpm && activeCount > 0 ? (totalRpm / activeCount) : 0;
 
-    var colTemplate = "1fr 60px 70px 90px 1fr";
-    if (n >= 5) colTemplate = "1fr 40px 50px 60px 1fr";
-    else if (n >= 3) colTemplate = "1fr 50px 55px 75px 1fr";
+    // Sort members based on checkbox
+    var sorted = members.slice();
+    var sortByName = document.getElementById("sortByName").checked;
+    if (sortByName) {
+      sorted.sort(function(a, b) { return a.name.localeCompare(b.name); });
+    } else {
+      sorted.sort(function(a, b) {
+        var ra = a.rpm !== null ? a.rpm : -1;
+        var rb = b.rpm !== null ? b.rpm : -1;
+        return rb - ra;
+      });
+    }
+
+    var colTemplate = "1fr 60px 70px 90px";
+    if (n >= 5) colTemplate = "1fr 40px 45px 60px";
+    else if (n >= 3) colTemplate = "1fr 50px 55px 75px";
 
     var html = '<div class="clan-col" style="--col-template:' + colTemplate + '">';
-    html += '<div class="col-header"><div class="cname">' + escapeHtml(clan.clanName || "Clan #" + clan.id) + '</div><div class="cid">ID ' + clan.id + '</div>';
+    html += '<div class="col-header">';
+    html += '<div class="cname">' + escapeHtml(clan.clanName || "Clan #" + clan.id) + '</div>';
+
+    // Rank and gaps
+    if (clan.clanRank) {
+      if (n >= 4) {
+        var p = [];
+        if (clan.upperGap !== null) p.push('&#9650; #' + clan.upperRank + '=' + clan.upperGap.toLocaleString());
+        if (clan.lowerGap !== null) p.push('&#9660; #' + clan.lowerRank + '=' + clan.lowerGap.toLocaleString());
+        var sep = n >= 5 ? ' ' : '  &#183;  ';
+        html += '<div class="crank-line">#' + clan.clanRank + (p.length > 0 ? sep + p.join(sep) : '') + '</div>';
+      } else {
+        html += '<div class="crank">Rank #' + clan.clanRank + '</div>';
+        var gp = [];
+        if (clan.upperGap !== null) gp.push('<span class="gap-up">&#9650; #' + clan.upperRank + ' = ' + clan.upperGap.toLocaleString() + '</span>');
+        if (clan.lowerGap !== null) gp.push('<span class="gap-down">&#9660; #' + clan.lowerRank + ' = ' + clan.lowerGap.toLocaleString() + '</span>');
+        if (gp.length > 0) html += '<div class="cgaps">' + gp.join(' <span class="gap-sep">&#183;</span> ') + '</div>';
+      }
+    }
+
+    html += '<div class="cid">ID ' + clan.id + '</div>';
     if (hasRpm) {
       html += '<div class="stats"><span class="stat-item"><span class="val rpm-val">' + totalRpm.toFixed(1) + '</span> <span class="lbl">total rpm</span></span>';
       if (avgRpm > 0) {
@@ -452,19 +514,19 @@
       return html;
     }
 
-    html += '<div class="member-row header"><span>Member</span><span style="text-align:right">RPM</span><span style="text-align:right">Gain</span><span style="text-align:right">Total</span><span></span></div>';
+    html += '<div class="member-row header"><span>Member</span><span style="text-align:right">RPM</span><span style="text-align:right">Gain</span><span style="text-align:right">Total</span></div>';
 
     var showAll = showInactive.checked;
-    var hasAnyData = members.some(function(m) { return m.rpm !== null; });
+    var hasAnyData = sorted.some(function(m) { return m.rpm !== null; });
     var rendered = 0;
 
-    for (var mi = 0; mi < members.length; mi++) {
-      var m = members[mi];
+    for (var mi = 0; mi < sorted.length; mi++) {
+      var m = sorted[mi];
       var isActive = m.rpm !== null && m.rpm > 0.01;
       if (!showAll && !isActive) continue;
       if (m.rpm === null && !showAll) continue;
 
-      html += renderMemberRow(m, totalRpm, mi === 0 && !hasAnyData);
+      html += renderMemberRow(m);
       rendered++;
     }
 
@@ -476,7 +538,7 @@
     return html;
   }
 
-  function renderMemberRow(m, clanTotalRpm, isWaiting) {
+  function renderMemberRow(m) {
     var rpmStr = m.rpm !== null ? m.rpm.toFixed(1) : "--";
     var rpmCls = "low";
     if (m.rpm !== null && m.rpm > 10) rpmCls = "hot";
@@ -485,15 +547,11 @@
     var gainStr = m.gain !== null ? "+" + m.gain.toLocaleString() : "--";
     var totalStr = m.reputation.toLocaleString();
 
-    var barPct = (m.rpm !== null && clanTotalRpm > 0) ? Math.min(m.rpm / clanTotalRpm * 100, 100) : 0;
-    var barActive = m.rpm !== null && m.rpm > 0.01;
-
     var html = '<div class="member-row">';
     html += '<span class="mname">' + escapeHtml(m.name) + '</span>';
     html += '<span class="mrpm ' + rpmCls + '">' + rpmStr + '</span>';
     html += '<span class="mgain">' + gainStr + '</span>';
     html += '<span class="mtotal">' + totalStr + '</span>';
-    html += '<div class="mbar"><div class="fill' + (barActive ? "" : " inactive") + '" style="width:' + barPct + '%"></div></div>';
     html += '</div>';
     return html;
   }
@@ -560,7 +618,7 @@
         if (state.clans[j].id === id) { exists = true; break; }
       }
       if (!exists) {
-        state.clans.push({ id: id, clanName: null, members: [], totalRpm: 0, totalGain: 0, activeCount: 0, memberCount: 0, blElapsed: 0, dot: "loading", error: null, rpmBaseline: null });
+        state.clans.push({ id: id, clanName: null, members: [], totalRpm: 0, totalGain: 0, activeCount: 0, memberCount: 0, blElapsed: 0, dot: "loading", error: null, rpmBaseline: null, clanRank: null, totalClans: 0, upperGap: null, upperRank: null, lowerGap: null, lowerRank: null });
         newIds.push(id);
       }
     }
@@ -598,7 +656,12 @@
     if (e.key === "Enter") trackBtn.click();
   });
 
+  var sortByNameCb = document.getElementById("sortByName");
   showInactive.addEventListener("change", function() {
+    if (state.clans.length > 0) renderAll();
+  });
+
+  sortByNameCb.addEventListener("change", function() {
     if (state.clans.length > 0) renderAll();
   });
 
