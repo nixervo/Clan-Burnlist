@@ -130,8 +130,10 @@
   </main>
 
   <div class="settings">
-    <label><input type="checkbox" id="sortByName" checked> Sort by name</label>
-    <label><input type="checkbox" id="showInactive"> Show inactive</label>
+    <label><input type="checkbox" id="sortById" checked> Sort by ID</label>
+    <label><input type="checkbox" id="sortByName"> Sort by Name</label>
+    <label><input type="checkbox" id="sortByRpm"> Sort by RPM</label>
+    <label><input type="checkbox" id="showInactive" checked> Show inactive</label>
     <label><input type="checkbox" id="autoRefresh" checked> Auto-refresh</label>
     <label>Interval: <select id="refreshInterval">
       <option value="5" selected>5s</option>
@@ -457,16 +459,19 @@
 
     // Sort members based on checkbox
     var sorted = members.slice();
+    var sortById = document.getElementById("sortById").checked;
     var sortByName = document.getElementById("sortByName").checked;
-    if (sortByName) {
-      sorted.sort(function(a, b) { return a.name.localeCompare(b.name); });
-    } else {
+    var sortByRpm = document.getElementById("sortByRpm").checked;
+    if (sortByRpm) {
       sorted.sort(function(a, b) {
         var ra = a.rpm !== null ? a.rpm : -1;
         var rb = b.rpm !== null ? b.rpm : -1;
         return rb - ra;
       });
+    } else if (sortByName) {
+      sorted.sort(function(a, b) { return a.name.localeCompare(b.name); });
     }
+    // sortById (API order) = no sort needed
 
     var colTemplate = "1fr 60px 70px 90px";
     if (n >= 5) colTemplate = "1fr 40px 45px 60px";
@@ -656,14 +661,24 @@
     if (e.key === "Enter") trackBtn.click();
   });
 
-  var sortByNameCb = document.getElementById("sortByName");
+  var sortCheckboxes = [
+    document.getElementById("sortById"),
+    document.getElementById("sortByName"),
+    document.getElementById("sortByRpm")
+  ];
   showInactive.addEventListener("change", function() {
     if (state.clans.length > 0) renderAll();
   });
 
-  sortByNameCb.addEventListener("change", function() {
-    if (state.clans.length > 0) renderAll();
-  });
+  for (var si = 0; si < sortCheckboxes.length; si++) {
+    sortCheckboxes[si].addEventListener("change", function() {
+      if (!this.checked) return;
+      for (var sj = 0; sj < sortCheckboxes.length; sj++) {
+        if (sortCheckboxes[sj] !== this) sortCheckboxes[sj].checked = false;
+      }
+      if (state.clans.length > 0) renderAll();
+    });
+  }
 
   autoRefresh.addEventListener("change", function() {
     if (autoRefresh.checked && state.clans.length > 0) {
