@@ -295,6 +295,24 @@
 
       clan.clanName = detail.clan_name || "Clan #" + clanId;
 
+      // Build unique display names for duplicates
+      var nameCount = {};
+      for (var mi = 0; mi < detail.members.length; mi++) {
+        var raw = detail.members[mi].character_name || "Unknown";
+        nameCount[raw] = (nameCount[raw] || 0) + 1;
+      }
+      var counter = {};
+      var uniqNames = [];
+      for (var mi = 0; mi < detail.members.length; mi++) {
+        var raw = detail.members[mi].character_name || "Unknown";
+        if (nameCount[raw] > 1) {
+          counter[raw] = (counter[raw] || 0) + 1;
+          uniqNames.push(raw + " (#" + counter[raw] + ")");
+        } else {
+          uniqNames.push(raw);
+        }
+      }
+
       // In-memory baseline, updated every fetch
       var bl = clan.rpmBaseline;
       var blElapsed = bl ? (now - bl.timestamp) / 1000 : 0;
@@ -303,8 +321,7 @@
       if (!bl) {
         bl = { timestamp: now, members: {} };
         for (var mi = 0; mi < detail.members.length; mi++) {
-          var m = detail.members[mi];
-          bl.members[m.character_name || "Unknown"] = m.member_reputation || 0;
+          bl.members[uniqNames[mi]] = detail.members[mi].member_reputation || 0;
         }
         clan.rpmBaseline = bl;
         blElapsed = 0;
@@ -313,10 +330,10 @@
       var members = [];
       for (var mi = 0; mi < detail.members.length; mi++) {
         var m = detail.members[mi];
-        var name = m.character_name || "Unknown";
+        var displayName = uniqNames[mi];
         var rep = m.member_reputation || 0;
 
-        var baseRep = bl.members[name];
+        var baseRep = bl.members[displayName];
         var gain = null;
         var rpm = null;
         if (baseRep !== undefined && blElapsed > 0) {
@@ -326,7 +343,7 @@
         }
 
         members.push({
-          name: name,
+          name: displayName,
           reputation: rep,
           gain: gain,
           rpm: rpm
@@ -336,8 +353,7 @@
       // Update baseline to current values for next fetch
       bl.timestamp = now;
       for (var mi = 0; mi < detail.members.length; mi++) {
-        var m = detail.members[mi];
-        bl.members[m.character_name || "Unknown"] = m.member_reputation || 0;
+        bl.members[uniqNames[mi]] = detail.members[mi].member_reputation || 0;
       }
 
       members.sort(function(a, b) {
