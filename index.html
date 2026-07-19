@@ -95,6 +95,9 @@
     .status-bar .right { justify-content: center; }
     .member-row { grid-template-columns: var(--col-template, 1fr 50px 55px 75px); font-size: 11px; }
   }
+  .maintenance-overlay { position: fixed; inset: 0; z-index: 99999; background: rgba(10,10,10,0.92); display: flex; align-items: center; justify-content: center; backdrop-filter: blur(4px); -webkit-backdrop-filter: blur(4px); }
+  .maintenance-overlay .maintenance-text { font-size: 36px; font-weight: 700; color: #fff; text-align: center; letter-spacing: 2px; }
+  .maintenance-overlay .maintenance-sub { font-size: 14px; color: #888; margin-top: 8px; font-weight: 400; letter-spacing: 1px; }
 </style>
 </head>
 <body>
@@ -724,5 +727,6 @@
 
 })();
 </script>
+<div class="maintenance-overlay"><div><div class="maintenance-text">Under Maintenance</div><div class="maintenance-sub">We'll be back soon</div></div></div>
 </body>
 </html>
