@@ -55,7 +55,7 @@
   .clan-col .col-header .stat-item .rpm-val { color: #e53935; }
   .clan-col .col-header .cgain { font-size: 11px; color: #4caf50; margin-top: 2px; }
 
-  .member-row { display: grid; grid-template-columns: 1fr 60px 70px 90px 1fr; gap: 6px; align-items: center; padding: 4px 0; border-bottom: 1px solid #0a0a0a; font-size: 12px; min-height: 24px; }
+  .member-row { display: grid; grid-template-columns: var(--col-template, 1fr 60px 70px 90px 1fr); gap: 6px; align-items: center; padding: 4px 0; border-bottom: 1px solid #0a0a0a; font-size: 12px; min-height: 24px; }
   .member-row.header { color: #555; font-size: 10px; text-transform: uppercase; letter-spacing: .5px; border-bottom: 1px solid #1a1a2e; padding-bottom: 4px; margin-bottom: 2px; }
   .member-row .mname { color: #ccc; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; padding-right: 4px; }
   .member-row .mrpm { font-weight: 600; font-variant-numeric: tabular-nums; text-align: right; }
@@ -89,7 +89,7 @@
     .clan-grid { grid-template-columns: 1fr !important; }
     .status-bar { flex-direction: column; align-items: stretch; text-align: center; }
     .status-bar .right { justify-content: center; }
-    .member-row { grid-template-columns: 1fr 50px 55px 75px 1fr; font-size: 11px; }
+    .member-row { grid-template-columns: var(--col-template, 1fr 50px 55px 75px 1fr); font-size: 11px; }
   }
 </style>
 </head>
@@ -320,7 +320,7 @@
         var gain = null;
         var rpm = null;
         if (prevMember !== null && elapsed > 0) {
-          var d = Math.max(0, rep - prevMember.reputation);
+          var d = Math.max(0, rep - prevMember);
           gain = d;
           rpm = d / elapsed * 60;
         }
@@ -392,13 +392,13 @@
 
     var html = '<div class="clan-grid" style="grid-template-columns: repeat(' + n + ', 1fr);">';
     for (var ci = 0; ci < n; ci++) {
-      html += renderClan(state.clans[ci]);
+      html += renderClan(state.clans[ci], n);
     }
     html += '</div>';
     mainContent.innerHTML = html;
   }
 
-  function renderClan(clan) {
+  function renderClan(clan, n) {
     var members = clan.members || [];
     var totalRpm = clan.totalRpm || 0;
     var totalGain = clan.totalGain || 0;
@@ -409,7 +409,11 @@
 
     var avgRpm = activeCount > 0 ? (totalRpm / activeCount) : 0;
 
-    var html = '<div class="clan-col">';
+    var colTemplate = "1fr 60px 70px 90px 1fr";
+    if (n >= 5) colTemplate = "1fr 40px 50px 60px 1fr";
+    else if (n >= 3) colTemplate = "1fr 50px 55px 75px 1fr";
+
+    var html = '<div class="clan-col" style="--col-template:' + colTemplate + '">';
     html += '<div class="col-header"><div class="cname">' + escapeHtml(clan.clanName || "Clan #" + clan.id) + '</div><div class="cid">ID ' + clan.id + '</div>';
     html += '<div class="stats"><span class="stat-item"><span class="val rpm-val">' + totalRpm.toFixed(1) + '</span> <span class="lbl">total rpm</span></span>';
     if (avgRpm > 0) {
