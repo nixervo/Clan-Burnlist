@@ -149,8 +149,6 @@
 <script>
 (function() {
   var DETAIL_API = "https://playninjarift.com/api/detail_clan_website.php?clan_id=";
-  var RPM_WINDOW = 60;
-  var RPM_MIN_ELAPSED = 10;
 
   var state = {
     clans: [],
@@ -297,20 +295,11 @@
 
       clan.clanName = detail.clan_name || "Clan #" + clanId;
 
-      // In-memory RPM baseline (not localStorage)
+      // In-memory baseline, updated every fetch
       var bl = clan.rpmBaseline;
       var blElapsed = bl ? (now - bl.timestamp) / 1000 : 0;
 
-      // Roll baseline forward every RPM_WINDOW seconds
-      if (bl && blElapsed >= RPM_WINDOW) {
-        bl.timestamp = now;
-        for (var mi = 0; mi < detail.members.length; mi++) {
-          var m = detail.members[mi];
-          bl.members[m.character_name || "Unknown"] = m.member_reputation || 0;
-        }
-      }
-
-      // Set initial baseline on first fetch
+      // First fetch: set baseline, skip rpm
       if (!bl) {
         bl = { timestamp: now, members: {} };
         for (var mi = 0; mi < detail.members.length; mi++) {
@@ -330,7 +319,7 @@
         var baseRep = bl.members[name];
         var gain = null;
         var rpm = null;
-        if (baseRep !== undefined && blElapsed >= RPM_MIN_ELAPSED) {
+        if (baseRep !== undefined && blElapsed > 0) {
           var d = Math.max(0, rep - baseRep);
           gain = d;
           rpm = d / blElapsed * 60;
@@ -342,6 +331,13 @@
           gain: gain,
           rpm: rpm
         });
+      }
+
+      // Update baseline to current values for next fetch
+      bl.timestamp = now;
+      for (var mi = 0; mi < detail.members.length; mi++) {
+        var m = detail.members[mi];
+        bl.members[m.character_name || "Unknown"] = m.member_reputation || 0;
       }
 
       members.sort(function(a, b) {
@@ -410,7 +406,7 @@
     var memberCount = clan.memberCount || 0;
     var blElapsed = clan.blElapsed || 0;
     var perN = getIntervalSec();
-    var hasRpm = blElapsed >= RPM_MIN_ELAPSED;
+    var hasRpm = blElapsed > 0;
 
     var avgRpm = hasRpm && activeCount > 0 ? (totalRpm / activeCount) : 0;
 
