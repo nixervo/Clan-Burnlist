@@ -1,0 +1,625 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Clan Burnlist</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: 'Segoe UI', system-ui, -apple-system, sans-serif; background: #0a0a0a; color: #e0e0e0; min-height: 100vh; display: flex; justify-content: center; padding: 20px 12px; }
+  .container { max-width: 1400px; width: 100%; }
+  header { text-align: center; margin-bottom: 16px; }
+  header h1 { font-size: 24px; font-weight: 700; color: #fff; letter-spacing: 1px; margin-bottom: 12px; }
+  header h1 span { color: #e53935; }
+
+  .controls { display: flex; gap: 8px; justify-content: center; margin-bottom: 8px; flex-wrap: wrap; }
+  .controls input { background: #1a1a1a; border: 1px solid #2a2a2a; color: #e0e0e0; padding: 10px 14px; border-radius: 8px; font-size: 15px; width: 220px; text-align: center; outline: none; transition: border .2s; }
+  .controls input:focus { border-color: #e53935; }
+  .controls button { background: #e53935; border: none; color: #fff; padding: 10px 24px; border-radius: 8px; font-size: 15px; font-weight: 600; cursor: pointer; transition: background .2s; }
+  .controls button:hover { background: #c62828; }
+  .controls button:disabled { opacity: .5; cursor: not-allowed; }
+
+  .chips { display: flex; gap: 6px; justify-content: center; flex-wrap: wrap; margin-bottom: 10px; min-height: 0; }
+  .chip { display: inline-flex; align-items: center; gap: 6px; background: #1a1a2e; border: 1px solid #2a2a3e; border-radius: 6px; padding: 4px 10px; font-size: 13px; color: #ccc; }
+  .chip .remove { cursor: pointer; font-size: 16px; line-height: 1; color: #666; transition: color .15s; }
+  .chip .remove:hover { color: #f44336; }
+  .chip .chip-dot { width: 6px; height: 6px; border-radius: 50%; display: inline-block; }
+  .chip .chip-dot.online { background: #4caf50; }
+  .chip .chip-dot.error { background: #f44336; }
+  .chip .chip-dot.loading { background: #ff9800; animation: pulse .8s infinite; }
+
+  .status-bar { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 6px; padding: 8px 14px; background: #0f0f0f; border: 1px solid #1a1a2e; border-radius: 10px; margin-bottom: 14px; font-size: 13px; }
+  .status-bar .dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; }
+  .status-bar .dot.online { background: #4caf50; box-shadow: 0 0 6px rgba(76,175,80,.4); }
+  .status-bar .dot.offline { background: #f44336; }
+  .status-bar .dot.loading { background: #ff9800; animation: pulse .8s infinite; }
+  @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: .3; } }
+  .status-bar .info { color: #fff; font-weight: 600; }
+  .status-bar .right { color: #666; display: flex; align-items: center; gap: 12px; }
+  .status-bar .countdown { color: #888; font-variant-numeric: tabular-nums; }
+  .status-bar .refresh-btn { cursor: pointer; font-size: 18px; line-height: 1; user-select: none; transition: transform .15s; }
+  .status-bar .refresh-btn:hover { color: #e53935; }
+  .status-bar .refresh-btn.spin { animation: spin .6s linear; }
+  @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+  .status-bar .error { color: #f44336; font-size: 13px; width: 100%; margin-top: 4px; }
+
+  .clan-grid { display: grid; gap: 12px; }
+  .clan-col { background: #0d0d0d; border: 1px solid #1a1a2e; border-radius: 10px; padding: 12px; min-width: 0; }
+  .clan-col .col-header { text-align: center; padding-bottom: 10px; border-bottom: 1px solid #1a1a2e; margin-bottom: 10px; }
+  .clan-col .col-header .cname { font-size: 15px; font-weight: 700; color: #fff; }
+  .clan-col .col-header .cid { font-size: 11px; color: #555; }
+  .clan-col .col-header .stats { display: flex; justify-content: center; gap: 12px; margin-top: 4px; flex-wrap: wrap; }
+  .clan-col .col-header .stat-item { font-size: 12px; }
+  .clan-col .col-header .stat-item .val { font-weight: 700; color: #fff; }
+  .clan-col .col-header .stat-item .lbl { color: #666; }
+  .clan-col .col-header .stat-item .rpm-val { color: #e53935; }
+  .clan-col .col-header .cgain { font-size: 11px; color: #4caf50; margin-top: 2px; }
+
+  .member-row { display: grid; grid-template-columns: 1fr 60px 70px 90px 1fr; gap: 6px; align-items: center; padding: 4px 0; border-bottom: 1px solid #0a0a0a; font-size: 12px; min-height: 24px; }
+  .member-row.header { color: #555; font-size: 10px; text-transform: uppercase; letter-spacing: .5px; border-bottom: 1px solid #1a1a2e; padding-bottom: 4px; margin-bottom: 2px; }
+  .member-row .mname { color: #ccc; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; padding-right: 4px; }
+  .member-row .mrpm { font-weight: 600; font-variant-numeric: tabular-nums; text-align: right; }
+  .member-row .mrpm.hot { color: #4caf50; }
+  .member-row .mrpm.active { color: #ff9800; }
+  .member-row .mrpm.low { color: #666; }
+  .member-row .mgain { text-align: right; color: #4caf50; font-weight: 600; font-variant-numeric: tabular-nums; }
+  .member-row .mtotal { text-align: right; color: #888; font-variant-numeric: tabular-nums; }
+  .member-row .mbar { height: 4px; background: #1a1a1a; border-radius: 2px; overflow: hidden; }
+  .member-row .mbar .fill { height: 100%; border-radius: 2px; background: linear-gradient(90deg, #e53935, #ff7043); transition: width .3s ease; }
+  .member-row .mbar .fill.inactive { background: #333; }
+
+  .member-row .no-data { color: #444; font-style: italic; text-align: center; grid-column: 1 / -1; padding: 8px 0; }
+
+  .empty-state, .error-state { text-align: center; padding: 60px 20px; color: #555; border: 1px dashed #1a1a2e; border-radius: 12px; }
+  .empty-state .icon { font-size: 48px; display: block; margin-bottom: 12px; }
+  .empty-state h3 { color: #888; font-weight: 400; font-size: 16px; margin-bottom: 6px; }
+  .empty-state p { font-size: 13px; }
+  .error-state .icon { font-size: 36px; display: block; margin-bottom: 8px; }
+  .error-state h3 { color: #f44336; font-weight: 400; font-size: 16px; }
+
+  .settings { display: flex; gap: 16px; justify-content: center; flex-wrap: wrap; font-size: 12px; color: #555; margin-top: 14px; padding: 10px; border-top: 1px solid #1a1a2e; }
+  .settings label { display: flex; align-items: center; gap: 4px; cursor: pointer; }
+  .settings input[type="checkbox"] { accent-color: #e53935; cursor: pointer; }
+  .settings select { background: #1a1a1a; border: 1px solid #2a2a2a; color: #ccc; padding: 2px 6px; border-radius: 4px; font-size: 12px; cursor: pointer; outline: none; }
+
+  footer { text-align: center; padding: 14px 0 4px; font-size: 11px; color: #333; }
+  footer a { color: #e53935; text-decoration: none; }
+
+  @media (max-width: 640px) {
+    .clan-grid { grid-template-columns: 1fr !important; }
+    .status-bar { flex-direction: column; align-items: stretch; text-align: center; }
+    .status-bar .right { justify-content: center; }
+    .member-row { grid-template-columns: 1fr 50px 55px 75px 1fr; font-size: 11px; }
+  }
+</style>
+</head>
+<body>
+<div class="container">
+  <header>
+    <h1><span>&#9760;</span> Clan Burnlist</h1>
+    <div class="controls">
+      <input type="text" id="clanIds" placeholder="2527, 1234" spellcheck="false">
+      <button id="trackBtn">Monitor</button>
+    </div>
+    <div class="chips" id="chips"></div>
+  </header>
+
+  <div class="status-bar" id="statusBar" style="display:none;">
+    <div class="clan-info">
+      <span class="dot" id="statusDot"></span>
+      <span class="info" id="statusInfo">-</span>
+    </div>
+    <div class="right">
+      <span id="lastUpdated">-</span>
+      <span class="countdown" id="countdown">&nbsp;</span>
+      <span class="refresh-btn" id="refreshBtn" title="Refresh now">&#x21bb;</span>
+    </div>
+    <div class="error" id="statusError"></div>
+  </div>
+
+  <main id="mainContent">
+    <div class="empty-state" id="emptyState">
+      <span class="icon">&#9760;</span>
+      <h3>Enter Clan IDs to start monitoring</h3>
+      <p>Separate multiple IDs with commas</p>
+    </div>
+  </main>
+
+  <div class="settings">
+    <label><input type="checkbox" id="showInactive"> Show inactive</label>
+    <label><input type="checkbox" id="autoRefresh" checked> Auto-refresh</label>
+    <label>Interval: <select id="refreshInterval">
+      <option value="5" selected>5s</option>
+      <option value="10">10s</option>
+      <option value="15">15s</option>
+      <option value="30">30s</option>
+      <option value="60">60s</option>
+      <option value="120">120s</option>
+    </select></label>
+  </div>
+
+  <footer>
+    <p>Data from <a href="https://playninjarift.com" target="_blank">NinjaRift</a></p>
+  </footer>
+</div>
+
+<script>
+(function() {
+  var DETAIL_API = "https://playninjarift.com/api/detail_clan_website.php?clan_id=";
+  var LS_PREFIX = "burnlist_";
+
+  var state = {
+    clans: [],
+    timer: null,
+    countdownInterval: null,
+    countdownSec: 0,
+    fetching: false,
+    refreshBtn: null
+  };
+
+  var clanIdsInput = document.getElementById("clanIds");
+  var trackBtn = document.getElementById("trackBtn");
+  var chips = document.getElementById("chips");
+  var statusBar = document.getElementById("statusBar");
+  var statusDot = document.getElementById("statusDot");
+  var statusInfo = document.getElementById("statusInfo");
+  var lastUpdated = document.getElementById("lastUpdated");
+  var countdownEl = document.getElementById("countdown");
+  var statusError = document.getElementById("statusError");
+  var mainContent = document.getElementById("mainContent");
+  var emptyState = document.getElementById("emptyState");
+  var showInactive = document.getElementById("showInactive");
+  var autoRefresh = document.getElementById("autoRefresh");
+  var refreshInterval = document.getElementById("refreshInterval");
+
+  function lsKey(id) { return LS_PREFIX + id; }
+
+  function loadSnapshot(id) {
+    try { var r = localStorage.getItem(lsKey(id)); if (r) return JSON.parse(r); } catch(e) {}
+    return null;
+  }
+
+  function saveSnapshot(id, data) {
+    try { localStorage.setItem(lsKey(id), JSON.stringify(data)); } catch(e) {}
+  }
+
+  function escapeHtml(str) {
+    var d = document.createElement("div");
+    d.textContent = str;
+    return d.innerHTML;
+  }
+
+  function truncate(str, n) {
+    if (str.length <= n) return str;
+    return str.slice(0, n - 1) + "\u2026";
+  }
+
+  function getIntervalSec() {
+    return parseInt(refreshInterval.value, 10) || 5;
+  }
+
+  function showError(msg) {
+    statusError.textContent = msg;
+    statusDot.className = "dot offline";
+  }
+
+  function clearError() {
+    statusError.textContent = "";
+  }
+
+  function setDot(cls) {
+    statusDot.className = "dot " + cls;
+  }
+
+  function startCountdown(sec) {
+    state.countdownSec = sec;
+    if (state.countdownInterval) clearInterval(state.countdownInterval);
+    state.countdownInterval = setInterval(function() {
+      state.countdownSec--;
+      if (state.countdownSec < 0) state.countdownSec = 0;
+      countdownEl.textContent = "Next: " + state.countdownSec + "s";
+    }, 1000);
+  }
+
+  function stopCountdown() {
+    if (state.countdownInterval) {
+      clearInterval(state.countdownInterval);
+      state.countdownInterval = null;
+    }
+    countdownEl.innerHTML = "&nbsp;";
+  }
+
+  function scheduleRefresh() {
+    if (state.refreshBtn) state.refreshBtn.classList.remove("spin");
+    if (state.timer) clearTimeout(state.timer);
+    state.timer = null;
+    if (!autoRefresh.checked) return;
+    var interval = getIntervalSec();
+    startCountdown(interval);
+    state.timer = setTimeout(fetchData, interval * 1000);
+  }
+
+  function fetchData() {
+    if (state.fetching || state.clans.length === 0) return;
+    state.fetching = true;
+    setDot("loading");
+    clearError();
+
+    var ids = state.clans.map(function(c) { return c.id; });
+    var fetches = ids.map(function(id) {
+      return fetch(DETAIL_API + id)
+        .then(function(r) {
+          if (!r.ok) throw new Error("HTTP " + r.status + " for clan " + id);
+          return r.json();
+        })
+        .then(function(data) {
+          return { clanId: id, data: data };
+        })
+        .catch(function(err) {
+          return { clanId: id, error: err.message };
+        });
+    });
+
+    Promise.all(fetches)
+      .then(function(results) {
+        state.fetching = false;
+        processData(results);
+      })
+      .catch(function(err) {
+        state.fetching = false;
+        setDot("offline");
+        showError("Fetch failed: " + err.message);
+        scheduleRefresh();
+      });
+  }
+
+  function processData(results) {
+    var now = Date.now();
+    var hasNew = false;
+    var allNames = [];
+
+    for (var ri = 0; ri < results.length; ri++) {
+      var res = results[ri];
+      var clanId = res.clanId;
+      var clan = null;
+      for (var ci = 0; ci < state.clans.length; ci++) {
+        if (state.clans[ci].id === clanId) { clan = state.clans[ci]; break; }
+      }
+      if (!clan) continue;
+
+      if (res.error) {
+        clan.dot = "error";
+        clan.error = res.error;
+        hasNew = true;
+        continue;
+      }
+
+      var detail = res.data;
+      if (!detail || !detail.members) {
+        clan.dot = "error";
+        clan.error = "Invalid response";
+        hasNew = true;
+        continue;
+      }
+
+      var prev = loadSnapshot(clanId);
+      var prevTs = prev ? prev.timestamp : null;
+      var elapsed = prevTs ? (now - prevTs) / 1000 : 0;
+
+      clan.clanName = detail.clan_name || "Clan #" + clanId;
+
+      var members = [];
+      var seen = {};
+      for (var mi = 0; mi < detail.members.length; mi++) {
+        var m = detail.members[mi];
+        var name = m.character_name || "Unknown";
+        var rep = m.member_reputation || 0;
+        seen[name] = true;
+
+        var prevMember = prev && prev.members ? prev.members[name] : null;
+        var gain = null;
+        var rpm = null;
+        if (prevMember !== null && elapsed > 0) {
+          var d = Math.max(0, rep - prevMember.reputation);
+          gain = d;
+          rpm = d / elapsed * 60;
+        }
+
+        members.push({
+          name: name,
+          reputation: rep,
+          gain: gain,
+          rpm: rpm
+        });
+      }
+
+      members.sort(function(a, b) {
+        var ra = a.rpm !== null ? a.rpm : -1;
+        var rb = b.rpm !== null ? b.rpm : -1;
+        return rb - ra;
+      });
+
+      var totalRpm = 0;
+      var totalGain = 0;
+      var activeCount = 0;
+      for (var mi = 0; mi < members.length; mi++) {
+        if (members[mi].rpm !== null) {
+          totalRpm += members[mi].rpm;
+          totalGain += members[mi].gain;
+          if (members[mi].rpm > 0.01) activeCount++;
+        }
+      }
+
+      var snapshot = { timestamp: now, members: {} };
+      for (var mi = 0; mi < detail.members.length; mi++) {
+        var m = detail.members[mi];
+        snapshot.members[m.character_name || "Unknown"] = m.member_reputation || 0;
+      }
+      saveSnapshot(clanId, snapshot);
+
+      clan.members = members;
+      clan.totalRpm = totalRpm;
+      clan.totalGain = totalGain;
+      clan.activeCount = activeCount;
+      clan.memberCount = detail.members.length;
+      clan.elapsed = elapsed;
+      clan.dot = "online";
+      clan.error = null;
+      hasNew = true;
+      allNames.push(clan.clanName);
+    }
+
+    if (hasNew) {
+      renderAll();
+      var namesStr = allNames.filter(Boolean).join(", ");
+      statusInfo.textContent = "Monitoring " + state.clans.length + " clan" + (state.clans.length > 1 ? "s" : "") + (namesStr ? ": " + namesStr : "");
+      statusBar.style.display = "flex";
+      setDot("online");
+      clearError();
+      lastUpdated.textContent = "Updated just now";
+      updateChips();
+    }
+
+    scheduleRefresh();
+  }
+
+  function renderAll() {
+    var n = state.clans.length;
+    if (n === 0) {
+      mainContent.innerHTML = '<div class="empty-state"><span class="icon">&#9760;</span><h3>Enter Clan IDs to start monitoring</h3><p>Separate multiple IDs with commas</p></div>';
+      return;
+    }
+
+    var html = '<div class="clan-grid" style="grid-template-columns: repeat(' + n + ', 1fr);">';
+    for (var ci = 0; ci < n; ci++) {
+      html += renderClan(state.clans[ci]);
+    }
+    html += '</div>';
+    mainContent.innerHTML = html;
+  }
+
+  function renderClan(clan) {
+    var members = clan.members || [];
+    var totalRpm = clan.totalRpm || 0;
+    var totalGain = clan.totalGain || 0;
+    var activeCount = clan.activeCount || 0;
+    var memberCount = clan.memberCount || 0;
+    var elapsed = clan.elapsed || 0;
+    var perN = getIntervalSec();
+
+    var avgRpm = activeCount > 0 ? (totalRpm / activeCount) : 0;
+
+    var html = '<div class="clan-col">';
+    html += '<div class="col-header"><div class="cname">' + escapeHtml(clan.clanName || "Clan #" + clan.id) + '</div><div class="cid">ID ' + clan.id + '</div>';
+    html += '<div class="stats"><span class="stat-item"><span class="val rpm-val">' + totalRpm.toFixed(1) + '</span> <span class="lbl">total rpm</span></span>';
+    if (avgRpm > 0) {
+      html += '<span class="stat-item"><span class="val">' + avgRpm.toFixed(1) + '</span> <span class="lbl">avg rpm</span></span>';
+    }
+    html += '<span class="stat-item"><span class="val">' + activeCount + '</span> <span class="lbl">/ ' + memberCount + ' active</span></span></div>';
+    if (totalGain > 0 && elapsed > 0) {
+      html += '<div class="cgain">+' + totalGain.toLocaleString() + ' rep in ' + Math.round(elapsed) + 's</div>';
+    }
+    html += '</div>';
+
+    if (clan.error) {
+      html += '<div class="error-state"><div class="icon">&#9888;</div><h3>' + escapeHtml(clan.error) + '</h3></div>';
+      html += '</div>';
+      return html;
+    }
+
+    html += '<div class="member-row header"><span>Member</span><span style="text-align:right">RPM</span><span style="text-align:right">Gain</span><span style="text-align:right">Total</span><span></span></div>';
+
+    var showAll = showInactive.checked;
+    var hasAnyData = members.some(function(m) { return m.rpm !== null; });
+    var rendered = 0;
+
+    for (var mi = 0; mi < members.length; mi++) {
+      var m = members[mi];
+      var isActive = m.rpm !== null && m.rpm > 0.01;
+      if (!showAll && !isActive) continue;
+      if (m.rpm === null && !showAll) continue;
+
+      html += renderMemberRow(m, totalRpm, mi === 0 && !hasAnyData);
+      rendered++;
+    }
+
+    if (rendered === 0) {
+      html += '<div class="member-row"><span class="no-data">' + (hasAnyData ? 'no active members' : 'waiting for data') + '</span></div>';
+    }
+
+    html += '</div>';
+    return html;
+  }
+
+  function renderMemberRow(m, clanTotalRpm, isWaiting) {
+    var rpmStr = m.rpm !== null ? m.rpm.toFixed(1) : "--";
+    var rpmCls = "low";
+    if (m.rpm !== null && m.rpm > 10) rpmCls = "hot";
+    else if (m.rpm !== null && m.rpm > 1) rpmCls = "active";
+
+    var gainStr = m.gain !== null ? "+" + m.gain.toLocaleString() : "--";
+    var totalStr = m.reputation.toLocaleString();
+
+    var barPct = (m.rpm !== null && clanTotalRpm > 0) ? Math.min(m.rpm / clanTotalRpm * 100, 100) : 0;
+    var barActive = m.rpm !== null && m.rpm > 0.01;
+
+    var html = '<div class="member-row">';
+    html += '<span class="mname">' + escapeHtml(m.name) + '</span>';
+    html += '<span class="mrpm ' + rpmCls + '">' + rpmStr + '</span>';
+    html += '<span class="mgain">' + gainStr + '</span>';
+    html += '<span class="mtotal">' + totalStr + '</span>';
+    html += '<div class="mbar"><div class="fill' + (barActive ? "" : " inactive") + '" style="width:' + barPct + '%"></div></div>';
+    html += '</div>';
+    return html;
+  }
+
+  function updateChips() {
+    var h = "";
+    for (var i = 0; i < state.clans.length; i++) {
+      var c = state.clans[i];
+      var dotCls = c.dot || "online";
+      h += '<div class="chip"><span class="chip-dot ' + dotCls + '"></span> ' + escapeHtml(c.clanName || "Clan #" + c.id) + ' <span class="remove" data-id="' + c.id + '">&#x2715;</span></div>';
+    }
+    chips.innerHTML = h;
+
+    var removes = chips.querySelectorAll(".remove");
+    for (var r = 0; r < removes.length; r++) {
+      removes[r].addEventListener("click", function() {
+        removeClan(parseInt(this.getAttribute("data-id"), 10));
+      });
+    }
+  }
+
+  function removeClan(id) {
+    var idx = -1;
+    for (var i = 0; i < state.clans.length; i++) {
+      if (state.clans[i].id === id) { idx = i; break; }
+    }
+    if (idx === -1) return;
+    state.clans.splice(idx, 1);
+
+    if (state.clans.length === 0) {
+      if (state.timer) clearTimeout(state.timer);
+      state.timer = null;
+      stopCountdown();
+      statusBar.style.display = "none";
+      renderAll();
+      updateChips();
+      try { localStorage.removeItem("burnlist_last_clans"); } catch(e) {}
+      return;
+    }
+    saveClanIds();
+    renderAll();
+    updateChips();
+    fetchData();
+  }
+
+  function saveClanIds() {
+    try {
+      var ids = state.clans.map(function(c) { return c.id; });
+      localStorage.setItem("burnlist_last_clans", ids.join(","));
+    } catch(e) {}
+  }
+
+  function startMonitoring(ids) {
+    if (!ids || ids.length === 0) return;
+    if (state.timer) clearTimeout(state.timer);
+    stopCountdown();
+
+    var newIds = [];
+    for (var i = 0; i < ids.length; i++) {
+      var id = parseInt(ids[i], 10);
+      if (!id || id <= 0) continue;
+      var exists = false;
+      for (var j = 0; j < state.clans.length; j++) {
+        if (state.clans[j].id === id) { exists = true; break; }
+      }
+      if (!exists) {
+        state.clans.push({ id: id, clanName: null, members: [], totalRpm: 0, totalGain: 0, activeCount: 0, memberCount: 0, elapsed: 0, dot: "loading", error: null });
+        newIds.push(id);
+      }
+    }
+
+    if (newIds.length === 0 && state.clans.length > 0) {
+      fetchData();
+      return;
+    }
+
+    saveClanIds();
+    updateChips();
+    fetchData();
+  }
+
+  trackBtn.addEventListener("click", function() {
+    var raw = clanIdsInput.value.trim();
+    if (!raw) {
+      showError("Enter at least one Clan ID");
+      return;
+    }
+    var parts = raw.split(",").map(function(s) { return s.trim(); }).filter(Boolean);
+    var ids = [];
+    for (var i = 0; i < parts.length; i++) {
+      var n = parseInt(parts[i], 10);
+      if (n && n > 0) ids.push(n);
+    }
+    if (ids.length === 0) {
+      showError("Enter valid numeric Clan IDs");
+      return;
+    }
+    startMonitoring(ids);
+  });
+
+  clanIdsInput.addEventListener("keydown", function(e) {
+    if (e.key === "Enter") trackBtn.click();
+  });
+
+  showInactive.addEventListener("change", function() {
+    if (state.clans.length > 0) renderAll();
+  });
+
+  autoRefresh.addEventListener("change", function() {
+    if (autoRefresh.checked && state.clans.length > 0) {
+      scheduleRefresh();
+    } else if (!autoRefresh.checked) {
+      if (state.timer) clearTimeout(state.timer);
+      state.timer = null;
+      stopCountdown();
+    }
+  });
+
+  refreshInterval.addEventListener("change", function() {
+    if (autoRefresh.checked && state.clans.length > 0) {
+      if (state.timer) clearTimeout(state.timer);
+      state.timer = null;
+      scheduleRefresh();
+    }
+  });
+
+  var refreshBtn = document.getElementById("refreshBtn");
+  state.refreshBtn = refreshBtn;
+  refreshBtn.addEventListener("click", function() {
+    if (state.fetching || state.clans.length === 0) return;
+    if (state.timer) clearTimeout(state.timer);
+    state.timer = null;
+    stopCountdown();
+    this.classList.add("spin");
+    fetchData();
+  });
+
+  (function init() {
+    try {
+      var saved = localStorage.getItem("burnlist_last_clans");
+      if (saved) {
+        var ids = saved.split(",").map(function(s) { return parseInt(s.trim(), 10); }).filter(function(n) { return n && n > 0; });
+        if (ids.length > 0) {
+          clanIdsInput.value = ids.join(", ");
+          startMonitoring(ids);
+        }
+      }
+    } catch(e) {}
+  })();
+
+})();
+</script>
+</body>
+</html>
